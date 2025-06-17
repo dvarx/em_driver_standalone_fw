@@ -2,8 +2,9 @@ name: ROS 2 CI
 
 on:
   push:
-    branches: [master,feature/pcb_pinout]
+    branches: [master]
   pull_request:
+    branches: [master]
 
 jobs:
   build:
@@ -15,6 +16,8 @@ jobs:
         #stores github workspace in $GITHUB_WORKSPACE
 
       - name: Run build test within docker container
+        env:
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }} 
         run:  |
-              docker pull dvarx/electrostimulation_fw_build_24_04
-              docker run dvarx/electrostimulation_fw_build_24_04
+              docker pull dvarx/em_driver_standalone_fw
+              docker run -e BRANCH_NAME=$BRANCH_NAME dvarx/em_driver_standalone_fw

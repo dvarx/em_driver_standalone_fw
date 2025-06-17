@@ -3,7 +3,7 @@
 #clone the source code
 mkdir src
 cd src
-git clone https://github.com/dvarx/electrostimulation_fw.git
+git clone -b $BRANCH_NAME https://github.com/dvarx/em_driver_standalone_fw
 cd electrostimulation_fw
 CUBE_DIR=/opt/st/stm32cubeide_1.18.0
 
