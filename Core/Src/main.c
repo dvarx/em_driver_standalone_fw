@@ -110,6 +110,22 @@ int main(void)
   MX_TIM1_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
+
+
+  ADC12_COMMON->CCR |= (1U << 17U);
+  HAL_Delay(1000);
+  if (HAL_ADCEx_Calibration_Start(&hadc1,ADC_SINGLE_ENDED) != HAL_OK){
+	  Error_Handler();
+  }
+  HAL_Delay(1000);
+  ADC_Enable(&hadc1);
+  HAL_Delay(1000);
+
+
+
+
+
+
   // setup PWM on Timer1 channel 1 and channel 2
   __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, period / 2);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
@@ -121,8 +137,6 @@ int main(void)
   HAL_TIM_PWM_Init(&htim1);
   // light up LED3
   HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_SET);
-  // start ADC
-  ADC_Enable(&hadc1);
   HAL_ADC_Start_IT(&hadc1);
   // start Timer2 which triggers ADC sampling
   HAL_TIM_Base_Start_IT(&htim2);
