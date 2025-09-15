@@ -2,7 +2,7 @@
 /**
  ******************************************************************************
  * @file           : main.c
- * @brief          : Main program body
+ * @brief          : Main program body for the cell electrostimulation (Elric)
  ******************************************************************************
 This project contains the firmware code for the STM32LK432B for the MSRL electrostimulation driver.
 /*
@@ -56,7 +56,7 @@ static void MX_ADC1_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 // UART related definitions
-uint32_t period = 14285; // initial counter corresponds to f_pwm=1.12kHz
+uint32_t period = 24806; // initial counter corresponds to f_pwm=10Hz
 uint8_t uart_rx_symbol;
 #define UART_BUFFER_SIZE 32
 uint8_t rx_buffer_counter;
@@ -302,7 +302,7 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 1;
+  htim1.Init.Prescaler = 128;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim1.Init.Period = 32000/2;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
