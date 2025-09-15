@@ -50,13 +50,17 @@ static void MX_TIM2_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_ADC1_Init(void);
 /* USER CODE BEGIN PFP */
-
+#define ISENSTVTY 0.1 	//current sensor sensitivity in V/A
+float convert_current(uint32_t adcout){
+	return (3.3/4096*adcout-1.5)/(ISENSTVTY);
+}
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 // UART related definitions
-uint32_t period = 14285; // initial counter corresponds to f_pwm=1.12kHz
+float duty=0.0;
+uint32_t period = 1024; // initial counter corresponds to f_pwm=1.12kHz
 uint8_t uart_rx_symbol;
 #define UART_BUFFER_SIZE 32
 uint8_t rx_buffer_counter;
@@ -71,7 +75,8 @@ const uint8_t CMD_CNTR[] = "CNTR";
 #define ADC_BUFFER_SIZE 1024
 uint32_t adc_val = 0;
 uint16_t adc_buffer_counter = 0;
-uint32_t adc_buffer[ADC_BUFFER_SIZE];
+float current_meas=0;
+float adc_buffer[ADC_BUFFER_SIZE];
 // pwm frequency related variables
 uint32_t des_freq_mHz = 0;
 /* USER CODE END 0 */
@@ -145,6 +150,7 @@ int main(void)
   // enable half-bridge drive
   HAL_GPIO_WritePin(SHUTDOWN_GPIO_Port, SHUTDOWN_Pin, GPIO_PIN_RESET);
 #endif
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -154,6 +160,8 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, (uint32_t)(period/2*(duty+1)));
+	  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, (uint32_t)(period/2*(duty+1)));
     // read a single character in interrupt mode
     HAL_UART_Receive_IT(&huart2, &uart_rx_symbol, 1);
     // HAL_UART_Transmit(&huart2,uart_tx_buffer,5,100);
@@ -505,12 +513,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
 	HAL_GPIO_TogglePin(ADC_SAMPLE_CLK_GPIO_Port, ADC_SAMPLE_CLK_Pin);
-  adc_buffer[adc_buffer_counter] = HAL_ADC_GetValue(&hadc1);
+  adc_buffer[adc_buffer_counter] = convert_current(HAL_ADC_GetValue(&hadc1));
+  current_meas=adc_buffer[adc_buffer_counter];
   adc_buffer_counter = (adc_buffer_counter + 1) % ADC_BUFFER_SIZE;
-  return;
 }
 
-void process_command()
+void process_command(void)
 {
   if (strcmp(CMD_START, rx_buffer) == 0)
   {
