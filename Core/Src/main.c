@@ -51,7 +51,7 @@ static void MX_ADC1_Init(void);
 /* USER CODE BEGIN PFP */
 #define ISENSTVTY 0.1 	//current sensor sensitivity in V/A
 float convert_current(uint32_t adcout){
-	return (3.3/4096*adcout-1.5)/(ISENSTVTY);
+	return (3.3/4096*adcout-1.5)/(ISENSTVTY)+0.9;
 }
 void setplus(void){
 	HAL_GPIO_WritePin(LEGAP_GPIO_Port, LEGAP_Pin, GPIO_PIN_SET);
@@ -70,6 +70,12 @@ void setnull(void){
 	HAL_GPIO_WritePin(LEGAN_GPIO_Port, LEGAN_Pin, GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(LEGBP_GPIO_Port, LEGBP_Pin, GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(LEGBN_GPIO_Port, LEGBN_Pin, GPIO_PIN_RESET);
+}
+void setbothminus(void){
+	HAL_GPIO_WritePin(LEGAP_GPIO_Port, LEGAP_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(LEGAN_GPIO_Port, LEGAN_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(LEGBP_GPIO_Port, LEGBP_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(LEGBN_GPIO_Port, LEGBN_Pin, GPIO_PIN_SET);
 }
 
 /* USER CODE END PFP */
@@ -107,7 +113,7 @@ enum tolbandstate{
 	VPLUS
 };
 enum tolbandstate state=INIT;
-float iref=-3.0;
+float iref=3.0;
 float deltai=0.5;
 bool run_main=false;
 
@@ -222,7 +228,7 @@ int main(void)
 		  //apply output signals
 		  switch(state){
 		  case INIT:
-			  setnull();
+			  setbothminus();
 			  break;
 		  case VNULLTOPLUS:
 			  setnull();
