@@ -13,6 +13,7 @@ This project contains the firmware code for the STM32LK432B for the MSRL electro
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "string.h"
+#include <stdbool.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -33,7 +34,6 @@ This project contains the firmware code for the STM32LK432B for the MSRL electro
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 
-TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 
 UART_HandleTypeDef huart2;
@@ -47,13 +47,31 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_TIM2_Init(void);
-static void MX_TIM1_Init(void);
 static void MX_ADC1_Init(void);
 /* USER CODE BEGIN PFP */
 #define ISENSTVTY 0.1 	//current sensor sensitivity in V/A
 float convert_current(uint32_t adcout){
 	return (3.3/4096*adcout-1.5)/(ISENSTVTY);
 }
+void setplus(void){
+	HAL_GPIO_WritePin(LEGAP_GPIO_Port, LEGAP_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(LEGAN_GPIO_Port, LEGAN_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(LEGBP_GPIO_Port, LEGBP_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(LEGBN_GPIO_Port, LEGBN_Pin, GPIO_PIN_SET);
+}
+void setminus(void){
+	HAL_GPIO_WritePin(LEGAP_GPIO_Port, LEGAP_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(LEGAN_GPIO_Port, LEGAN_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(LEGBP_GPIO_Port, LEGBP_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(LEGBN_GPIO_Port, LEGBN_Pin, GPIO_PIN_RESET);
+}
+void setnull(void){
+	HAL_GPIO_WritePin(LEGAP_GPIO_Port, LEGAP_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(LEGAN_GPIO_Port, LEGAN_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(LEGBP_GPIO_Port, LEGBP_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(LEGBN_GPIO_Port, LEGBN_Pin, GPIO_PIN_RESET);
+}
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -75,10 +93,24 @@ const uint8_t CMD_CNTR[] = "CNTR";
 #define ADC_BUFFER_SIZE 1024
 uint32_t adc_val = 0;
 uint16_t adc_buffer_counter = 0;
-float current_meas=0;
+float current_meas=0.0;
 float adc_buffer[ADC_BUFFER_SIZE];
 // pwm frequency related variables
 uint32_t des_freq_mHz = 0;
+
+//tolerance band control relate
+enum tolbandstate{
+	INIT,
+	VNULLTOPLUS,
+	VNULLTOMINUS,
+	VMINUS,
+	VPLUS
+};
+enum tolbandstate state=INIT;
+float iref=-3.0;
+float deltai=0.5;
+bool run_main=false;
+
 /* USER CODE END 0 */
 
 /**
@@ -112,7 +144,6 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   MX_TIM2_Init();
-  MX_TIM1_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
 
@@ -132,14 +163,14 @@ int main(void)
 
 
   // setup PWM on Timer1 channel 1 and channel 2
-  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, period / 2);
-  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
-  HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_1);
-  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, period / 2);
-  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
-  HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_2);
-  htim1.Init.Period = period;
-  HAL_TIM_PWM_Init(&htim1);
+  //__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, period / 2);
+  //HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+  //HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_1);
+  //__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, period / 2);
+  //HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
+  //HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_2);
+  //htim1.Init.Period = period;
+ //HAL_TIM_PWM_Init(&htim1);
   // light up LED3
   HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, GPIO_PIN_SET);
   HAL_ADC_Start_IT(&hadc1);
@@ -160,11 +191,58 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, (uint32_t)(period/2*(duty+1)));
-	  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, (uint32_t)(period/2*(duty+1)));
-    // read a single character in interrupt mode
-    HAL_UART_Receive_IT(&huart2, &uart_rx_symbol, 1);
-    // HAL_UART_Transmit(&huart2,uart_tx_buffer,5,100);
+	  if(run_main){
+		//perform the state transition
+		  switch(state){
+		  case INIT:
+			  if(current_meas<iref)
+				  state=VNULLTOPLUS;
+			  else
+				  state=VNULLTOMINUS;
+			  break;
+		  case VNULLTOPLUS:
+			  state=VPLUS;
+			  break;
+		  case VNULLTOMINUS:
+			  state=VMINUS;
+			  break;
+		  case VMINUS:
+			  if(current_meas<(iref-deltai))
+				  state=VNULLTOPLUS;
+			  else
+				  state=VMINUS;
+			  break;
+		  case VPLUS:
+			  if(current_meas>(iref+deltai))
+				  state=VNULLTOMINUS;
+			  else
+				  state=VPLUS;
+			  break;
+		  }
+		  //apply output signals
+		  switch(state){
+		  case INIT:
+			  setnull();
+			  break;
+		  case VNULLTOPLUS:
+			  setnull();
+			  break;
+		  case VNULLTOMINUS:
+			  setnull();
+			  break;
+		  case VPLUS:
+			  setplus();
+			  break;
+		  case VMINUS:
+			  setminus();
+			  break;
+		  }
+
+		// read a single character in interrupt mode
+		HAL_UART_Receive_IT(&huart2, &uart_rx_symbol, 1);
+		// HAL_UART_Transmit(&huart2,uart_tx_buffer,5,100);
+		run_main=false;
+	  }
   }
   /* USER CODE END 3 */
 }
@@ -291,81 +369,6 @@ static void MX_ADC1_Init(void)
 }
 
 /**
-  * @brief TIM1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM1_Init(void)
-{
-
-  /* USER CODE BEGIN TIM1_Init 0 */
-
-  /* USER CODE END TIM1_Init 0 */
-
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
-  TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
-
-  /* USER CODE BEGIN TIM1_Init 1 */
-
-  /* USER CODE END TIM1_Init 1 */
-  htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 1;
-  htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 32000/2;
-  htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim1.Init.RepetitionCounter = 0;
-  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterOutputTrigger2 = TIM_TRGO2_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
-  sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
-  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigOC.OCMode = TIM_OCMODE_PWM2;
-  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
-  sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
-  sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
-  sBreakDeadTimeConfig.DeadTime = 30;
-  sBreakDeadTimeConfig.BreakState = TIM_BREAK_DISABLE;
-  sBreakDeadTimeConfig.BreakPolarity = TIM_BREAKPOLARITY_HIGH;
-  sBreakDeadTimeConfig.BreakFilter = 0;
-  sBreakDeadTimeConfig.Break2State = TIM_BREAK2_DISABLE;
-  sBreakDeadTimeConfig.Break2Polarity = TIM_BREAK2POLARITY_HIGH;
-  sBreakDeadTimeConfig.Break2Filter = 0;
-  sBreakDeadTimeConfig.AutomaticOutput = TIM_AUTOMATICOUTPUT_DISABLE;
-  if (HAL_TIMEx_ConfigBreakDeadTime(&htim1, &sBreakDeadTimeConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM1_Init 2 */
-
-  /* USER CODE END TIM1_Init 2 */
-  HAL_TIM_MspPostInit(&htim1);
-
-}
-
-/**
   * @brief TIM2 Initialization Function
   * @param None
   * @retval None
@@ -386,7 +389,7 @@ static void MX_TIM2_Init(void)
   htim2.Instance = TIM2;
   htim2.Init.Prescaler = 320-1;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 100;
+  htim2.Init.Period = 10;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -463,14 +466,27 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, ADC_SAMPLE_CLK_Pin|SHUTDOWN_Pin|LED_BLUE_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, ADC_SAMPLE_CLK_Pin|LEGAN_Pin|LEGAP_Pin|LEGBP_Pin
+                          |SHUTDOWN_Pin|LED_BLUE_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : ADC_SAMPLE_CLK_Pin SHUTDOWN_Pin LED_BLUE_Pin */
-  GPIO_InitStruct.Pin = ADC_SAMPLE_CLK_Pin|SHUTDOWN_Pin|LED_BLUE_Pin;
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LEGBN_GPIO_Port, LEGBN_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pins : ADC_SAMPLE_CLK_Pin LEGAN_Pin LEGAP_Pin LEGBP_Pin
+                           SHUTDOWN_Pin LED_BLUE_Pin */
+  GPIO_InitStruct.Pin = ADC_SAMPLE_CLK_Pin|LEGAN_Pin|LEGAP_Pin|LEGBP_Pin
+                          |SHUTDOWN_Pin|LED_BLUE_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : LEGBN_Pin */
+  GPIO_InitStruct.Pin = LEGBN_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(LEGBN_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
@@ -482,7 +498,9 @@ static void MX_GPIO_Init(void)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   // HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
+  run_main=true;
   HAL_ADC_Start_IT(&hadc1);
+
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
@@ -536,10 +554,10 @@ void process_command(void)
   {
     // set the desired frequency
     uint32_t period = atoi(rx_buffer + COMMAND_LENGTH + 1);
-    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, period / 2);
-    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, period / 2);
-    htim1.Init.Period = period;
-    HAL_TIM_PWM_Init(&htim1);
+    //__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, period / 2);
+    //__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, period / 2);
+    //htim1.Init.Period = period;
+    //HAL_TIM_PWM_Init(&htim1);
   }
   // reset the buffer counter
   rx_buffer_counter = 0;

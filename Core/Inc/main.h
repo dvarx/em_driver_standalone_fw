@@ -49,8 +49,6 @@ extern "C" {
 
 /* USER CODE END EM */
 
-void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
-
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
 
@@ -63,6 +61,14 @@ void Error_Handler(void);
 #define VCP_TX_GPIO_Port GPIOA
 #define ADC_SAMPLE_CLK_Pin GPIO_PIN_5
 #define ADC_SAMPLE_CLK_GPIO_Port GPIOA
+#define LEGAN_Pin GPIO_PIN_7
+#define LEGAN_GPIO_Port GPIOA
+#define LEGBN_Pin GPIO_PIN_0
+#define LEGBN_GPIO_Port GPIOB
+#define LEGAP_Pin GPIO_PIN_8
+#define LEGAP_GPIO_Port GPIOA
+#define LEGBP_Pin GPIO_PIN_9
+#define LEGBP_GPIO_Port GPIOA
 #define SHUTDOWN_Pin GPIO_PIN_10
 #define SHUTDOWN_GPIO_Port GPIOA
 #define LED_BLUE_Pin GPIO_PIN_12
