@@ -2,7 +2,8 @@
 ADC1.Channel-2\#ChannelRegularConversion=ADC_CHANNEL_8
 ADC1.ClockPrescaler=ADC_CLOCK_ASYNC_DIV1
 ADC1.CommonPathInternal=null|null|null|null
-ADC1.IPParameters=Rank-2\#ChannelRegularConversion,master,Channel-2\#ChannelRegularConversion,SamplingTime-2\#ChannelRegularConversion,OffsetNumber-2\#ChannelRegularConversion,NbrOfConversionFlag,ClockPrescaler,CommonPathInternal
+ADC1.ContinuousConvMode=DISABLE
+ADC1.IPParameters=Rank-2\#ChannelRegularConversion,master,Channel-2\#ChannelRegularConversion,SamplingTime-2\#ChannelRegularConversion,OffsetNumber-2\#ChannelRegularConversion,NbrOfConversionFlag,ClockPrescaler,ContinuousConvMode,CommonPathInternal
 ADC1.NbrOfConversionFlag=1
 ADC1.OffsetNumber-2\#ChannelRegularConversion=ADC_OFFSET_NONE
 ADC1.Rank-2\#ChannelRegularConversion=1

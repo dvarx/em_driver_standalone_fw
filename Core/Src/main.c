@@ -113,9 +113,11 @@ enum tolbandstate{
 	VPLUS
 };
 enum tolbandstate state=INIT;
-float iref=3.0;
+float iref=4.0;
 float deltai=0.5;
 bool run_main=false;
+unsigned int loopcounter=0;
+unsigned int counterlim=5000;
 
 /* USER CODE END 0 */
 
@@ -248,6 +250,12 @@ int main(void)
 		HAL_UART_Receive_IT(&huart2, &uart_rx_symbol, 1);
 		// HAL_UART_Transmit(&huart2,uart_tx_buffer,5,100);
 		run_main=false;
+		if(loopcounter>=counterlim){
+			loopcounter=0;
+			iref=-1*iref;
+		}
+		else
+			loopcounter++;
 	  }
   }
   /* USER CODE END 3 */
