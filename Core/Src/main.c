@@ -113,11 +113,11 @@ enum tolbandstate{
 	VPLUS
 };
 enum tolbandstate state=INIT;
-float iref=4.0;
-float deltai=0.5;
+float iref=5.0;
+float deltai=0.1;
 bool run_main=false;
 unsigned int loopcounter=0;
-unsigned int counterlim=5000;
+unsigned int counterlim=1000;
 
 /* USER CODE END 0 */
 
@@ -200,6 +200,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	  if(run_main){
+		  HAL_GPIO_TogglePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin);
 		//perform the state transition
 		  switch(state){
 		  case INIT:

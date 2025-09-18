@@ -1,6 +1,7 @@
 filename="adc_readout.txt"
 import matplotlib.pyplot as plt
 import struct
+import numpy as np
 
 def read_float32_from_ascii(file_path):
     """
@@ -38,6 +39,9 @@ def read_float32_from_ascii(file_path):
 vals=[]
 
 vals=read_float32_from_ascii("adc_readout.txt")
+vals=np.array(vals)
 
 plt.plot(vals)
+plt.xlabel("sample no")
+plt.ylabel("Current [A]")
 plt.show()
